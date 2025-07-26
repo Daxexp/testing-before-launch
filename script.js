@@ -1,138 +1,221 @@
-const SHEET_URL =
-  "https://script.google.com/macros/s/AKfycbwBGhKRUumzGy08dzGVYZbkrUfdvHJvSSawS1bRgfndI7H9Tg3s_mceL1d-AcLhiwFs3w/exec";
+const DATA_URL = "https://script.google.com/macros/s/AKfycbyINWFJ32BoDYI6yrO7X1xY-rgYpPe5z71f5ad-cGOTPwPSUNd8EoIww6ubTMMkAF9X/exec";
 
-const loader = document.getElementById("loaderWrapper");
-const financeTable = document.getElementById("financeTable").getElementsByTagName("tbody")[0];
-const categoryFilter = document.getElementById("categoryFilter");
-const filteredTotal = document.getElementById("filteredTotal");
-const expenseChart = document.getElementById("expenseChart").getContext("2d");
-let originalData = [];
-let chart;
+let chartInstance;
+let globalSummary = {};
+let globalTransactions = [];
 
-function showLoader() {
-  loader.style.display = "flex";
-}
-
-function hideLoader() {
-  loader.style.display = "none";
-}
+const toggleIncome = document.getElementById("toggleIncome");
+const categoryFilterTable = document.getElementById("categoryFilterTable");
+const categoryTotalDiv = document.getElementById("categoryTotal");
+const pieTotalDiv = document.getElementById("pieTotal");
+const toggleDarkModeBtn = document.getElementById("toggleDarkModeBtn");
+const exportPdfBtn = document.getElementById("exportPdfBtn");
 
 async function fetchData() {
-  showLoader();
-  const response = await fetch(SHEET_URL);
-  const data = await response.json();
-  hideLoader();
-  originalData = data;
-  populateTable(data);
-  populateFilterOptions(data);
-  updateChart(data, document.getElementById("includeIncome").checked);
+  try {
+    const res = await fetch(DATA_URL);
+    if (!res.ok) throw new Error("Failed to fetch data");
+    return await res.json();
+  } catch (err) {
+    alert("Error: " + err.message);
+    return null;
+  }
 }
 
-function populateTable(data) {
-  financeTable.innerHTML = "";
-  data.forEach((row) => {
-    const tr = document.createElement("tr");
-    ["Date", "Category", "Amount", "Note"].forEach((key) => {
-      const td = document.createElement("td");
-      td.textContent = row[key];
-      tr.appendChild(td);
-    });
-    financeTable.appendChild(tr);
+function renderPieChart(includeIncome = false) {
+  const labels = [];
+  const values = [];
+  const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#8BC34A', '#FF7043', '#7E57C2', '#26A69A', '#FFB300', '#8D6E63', '#789262'];
+  const bgColors = [];
+  let colorIndex = 0;
+  let totalAmount = 0;
+
+  for (let [category, value] of Object.entries(globalSummary)) {
+    const cat = category.trim().toLowerCase();
+    if (!includeIncome && cat === 'income') continue;
+    labels.push(category);
+    values.push(value);
+    totalAmount += parseFloat(value);
+    bgColors.push(colors[colorIndex++ % colors.length]);
+  }
+
+  if (chartInstance) chartInstance.destroy();
+  chartInstance = new Chart(document.getElementById('categoryChart').getContext('2d'), {
+    type: 'pie',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: values,
+        backgroundColor: bgColors
+      }]
+    },
+    options: {
+      animation: {
+        duration: 800,
+        easing: 'easeOutQuart'
+      },
+      responsive: true,
+      plugins: {
+        legend: { position: 'right' },
+        title: {
+          display: true,
+          text: 'Spending by Category',
+          font: { size: 18 }
+        }
+      }
+    }
+  });
+
+  if (includeIncome) {
+    const income = parseFloat(globalSummary['Income'] || 0);
+    const expenses = Object.entries(globalSummary)
+      .filter(([cat]) => cat.trim().toLowerCase() !== 'income')
+      .reduce((sum, [, val]) => sum + parseFloat(val), 0);
+    const net = income - expenses;
+    pieTotalDiv.innerHTML = `Balance (Income - Expenses): Rs. ${net.toLocaleString()}`;
+  } else {
+    pieTotalDiv.innerHTML = `Total Expenses: Rs. ${totalAmount.toLocaleString()}`;
+  }
+}
+
+function populateCategoryFilters(categories) {
+  categoryFilterTable.innerHTML = `<option value="all">All</option>`;
+  categories.forEach(cat => {
+    const opt = document.createElement('option');
+    opt.value = cat;
+    opt.textContent = cat;
+    categoryFilterTable.appendChild(opt);
   });
 }
 
-function populateFilterOptions(data) {
-  const categories = new Set(data.map((row) => row.Category));
-  categoryFilter.innerHTML = `<option value="All">All</option>`;
-  categories.forEach((category) => {
-    categoryFilter.innerHTML += `<option value="${category}">${category}</option>`;
+function populateTransactionsTable(transactions) {
+  const tbody = document.querySelector('#transactionsTable tbody');
+  tbody.innerHTML = "";
+
+  if (transactions.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center">No transactions available</td></tr>`;
+    return;
+  }
+
+  transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  transactions.forEach(tx => {
+    const tr = document.createElement('tr');
+    const amount = parseFloat(tx.amount);
+    const cat = tx.category.trim().toLowerCase();
+    const isIncome = cat === 'income';
+    const amountClass = isIncome ? 'amount-income' : 'amount-expense';
+    tr.setAttribute("data-category", tx.category);
+    tr.innerHTML = `
+      <td>${tx.date}</td>
+      <td>${tx.name}</td>
+      <td>${tx.category}</td>
+      <td class="${amountClass}">Rs. ${amount.toLocaleString()}</td>
+      <td>${tx.note || ''}</td>
+    `;
+    tbody.appendChild(tr);
   });
 }
 
 function filterTable(category) {
-  let filtered = originalData;
-  if (category !== "All") {
-    filtered = originalData.filter((row) => row.Category === category);
+  const rows = document.querySelectorAll('#transactionsTable tbody tr');
+
+  rows.forEach(row => {
+    row.style.display = (category === "all" || row.getAttribute("data-category") === category) ? "" : "none";
+  });
+
+  if (category.toLowerCase() === "income") {
+    const total = globalSummary[category] || 0;
+    categoryTotalDiv.innerHTML = `Total Income: Rs. ${parseFloat(total).toLocaleString()}`;
+  } else if (category === "all") {
+    categoryTotalDiv.innerHTML = "";
+  } else {
+    const total = globalSummary[category] || 0;
+    categoryTotalDiv.innerHTML = `Total: Rs. ${parseFloat(total).toLocaleString()}`;
   }
-  populateTable(filtered);
-
-  const total = filtered.reduce((sum, row) => {
-    const amount = parseFloat(row.Amount) || 0;
-    return sum + amount;
-  }, 0);
-
-  filteredTotal.textContent = `Total: Rs. ${total.toFixed(2)}`;
 }
 
-function updateChart(data, includeIncome) {
-  const filtered = includeIncome
-    ? data
-    : data.filter((row) => row.Category !== "Income");
+function toggleDarkMode() {
+  document.body.classList.toggle('dark');
+  if (document.body.classList.contains('dark')) {
+    toggleDarkModeBtn.textContent = '☀️';
+    toggleDarkModeBtn.title = 'Switch to Light Mode';
+  } else {
+    toggleDarkModeBtn.textContent = '🌙';
+    toggleDarkModeBtn.title = 'Switch to Dark Mode';
+  }
+}
 
-  const totals = {};
-  filtered.forEach((row) => {
-    const amount = parseFloat(row.Amount);
-    if (!isNaN(amount)) {
-      totals[row.Category] = (totals[row.Category] || 0) + amount;
+function exportTableToPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  doc.setFontSize(16);
+  doc.text("Finance Dashboard Transactions", 14, 20);
+
+  const columns = [
+    { header: 'Date', dataKey: 'date' },
+    { header: 'Name', dataKey: 'name' },
+    { header: 'Category', dataKey: 'category' },
+    { header: 'Amount', dataKey: 'amount' },
+    { header: 'Note', dataKey: 'note' }
+  ];
+
+  const rows = [];
+  document.querySelectorAll('#transactionsTable tbody tr').forEach(tr => {
+    if (tr.style.display !== 'none') {
+      const tds = tr.querySelectorAll('td');
+      rows.push({
+        date: tds[0].textContent,
+        name: tds[1].textContent,
+        category: tds[2].textContent,
+        amount: tds[3].textContent,
+        note: tds[4].textContent
+      });
     }
   });
 
-  const labels = Object.keys(totals);
-  const amounts = Object.values(totals);
+  if (rows.length === 0) {
+    alert("No transactions to export!");
+    return;
+  }
 
-  if (chart) chart.destroy();
-
-  chart = new Chart(expenseChart, {
-    type: "pie",
-    data: {
-      labels: labels,
-      datasets: [
-        {
-          label: "Expenses",
-          data: amounts,
-          backgroundColor: [
-            "#ff6384",
-            "#36a2eb",
-            "#cc65fe",
-            "#ffce56",
-            "#ffa07a",
-            "#8a2be2",
-          ],
-        },
-      ],
-    },
+  doc.autoTable({
+    columns: columns,
+    body: rows,
+    startY: 30,
+    styles: { fontSize: 10 },
+    headStyles: { fillColor: [44, 62, 80], textColor: 255 },
+    alternateRowStyles: { fillColor: [240, 240, 240] },
   });
+
+  doc.save('Finance_Dashboard_Transactions.pdf');
 }
 
-document.getElementById("includeIncome").addEventListener("change", () => {
-  updateChart(originalData, document.getElementById("includeIncome").checked);
+async function init() {
+  const data = await fetchData();
+  if (!data) return;
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('transactionsTable').style.display = 'table';
+
+  globalSummary = data.summary;
+  globalTransactions = data.transactions;
+
+  const categories = Object.keys(globalSummary);
+  populateCategoryFilters(categories);
+
+  renderPieChart(toggleIncome.checked);
+  populateTransactionsTable(globalTransactions);
+}
+
+toggleIncome.addEventListener("change", () => {
+  renderPieChart(toggleIncome.checked);
 });
-
-categoryFilter.addEventListener("change", () => {
-  filterTable(categoryFilter.value);
+categoryFilterTable.addEventListener("change", () => {
+  filterTable(categoryFilterTable.value);
 });
+toggleDarkModeBtn.addEventListener("click", toggleDarkMode);
+exportPdfBtn.addEventListener("click", exportTableToPDF);
 
-document.getElementById("darkModeToggle").addEventListener("click", () => {
-  document.body.classList.toggle("dark-mode");
-});
-
-document.getElementById("exportButton").addEventListener("click", () => {
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF();
-  let y = 10;
-  pdf.text("Finance Report", 10, y);
-  y += 10;
-
-  originalData.forEach((row) => {
-    pdf.text(
-      `${row.Date} - ${row.Category} - Rs. ${row.Amount} - ${row.Note}`,
-      10,
-      y
-    );
-    y += 10;
-  });
-
-  pdf.save("finance_report.pdf");
-});
-
-window.onload = fetchData;
+init();
