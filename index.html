@@ -1,50 +1,58 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Finance Dashboard</title>
-    <link rel="stylesheet" href="style.css" />
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  </head>
-  <body>
-    <div class="top-buttons">
-      <button id="exportButton" title="Export to PDF">📄</button>
-      <button id="darkModeToggle" title="Toggle Dark Mode">🌙</button>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Finance Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+
+  <h1>Finance Dashboard</h1>
+
+  <div id="buttonsContainer">
+    <button id="toggleDarkModeBtn" class="icon-btn" title="Toggle Dark Mode">🌙</button>
+    <button id="exportPdfBtn" class="icon-btn" title="Export Transactions as PDF">📄</button>
+  </div>
+
+  <div id="charts">
+    <div id="filters">
+      <label><input type="checkbox" id="toggleIncome" /> Include Income</label>
     </div>
-    <div class="container">
-      <h1>Finance Dashboard</h1>
-      <div class="chart-controls">
-        <div class="chart-wrapper">
-          <canvas id="expenseChart"></canvas>
-          <label><input type="checkbox" id="includeIncome" /> Include Income</label>
-        </div>
-        <div class="filter-section">
-          <label for="categoryFilter">Filter Table by Category:</label>
-          <select id="categoryFilter">
-            <option value="All">All</option>
-          </select>
-          <div id="filteredTotal">Total: Rs. 0.00</div>
-        </div>
-      </div>
-      <div class="table-container">
-        <table id="financeTable">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Category</th>
-              <th>Amount (Rs.)</th>
-              <th>Note</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="loader-wrapper" id="loaderWrapper">
-      <div class="loader"></div>
-    </div>
-    <script src="script.js"></script>
-  </body>
+    <canvas id="categoryChart"></canvas>
+    <div id="pieTotal"></div>
+  </div>
+
+  <h2>Transactions</h2>
+  <div id="filters">
+    <label>
+      Filter Table by Category:
+      <select id="categoryFilterTable">
+        <option value="all">All</option>
+      </select>
+    </label>
+  </div>
+
+  <div id="categoryTotal"></div>
+
+  <div id="loading"><div class="spinner"></div></div>
+
+  <table id="transactionsTable" style="display:none;">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Name</th>
+        <th>Category</th>
+        <th>Amount</th>
+        <th>Note</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script src="script.js"></script>
+</body>
 </html>
