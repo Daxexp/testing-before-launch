@@ -1,13 +1,12 @@
-// === Define your URLs in order: July 2025, August 2025, etc. ===
+// === Step 1: Define the ordered list of Google Script links ===
 const monthDataLinks = [
-  "https://script.google.com/macros/s/AKfycbyINWFJ32BoDYI6yrO7X1xY-rgYpPe5z71f5ad-cGOTPwPSUNd8EoIww6ubTMMkAF9X/exec",
-  "https://script.google.com/macros/s/AKfycbxTh13rYdaQwoy8n6DuDPwv6SmLgpE3weilAvnmUhbR5Ct1-7qYAWz_jfAQsO57ut0/exec",
-  "https://script.google.com/macros/s/YOUR_SEPTEMBER_2025_URL/exec"
+  "https://script.google.com/macros/s/AKfycbyINWFJ32BoDYI6yrO7X1xY-rgYpPe5z71f5ad-cGOTPwPSUNd8EoIww6ubTMMkAF9X/exec", // July 2025
+  "https://script.google.com/macros/s/AKfycbxTh13rYdaQwoy8n6DuDPwv6SmLgpE3weilAvnmUhbR5Ct1-7qYAWz_jfAQsO57ut0/exec", // August 2025
 ];
 
-// === Generate month labels starting from July 2025 ===
+// === Step 2: Dynamically generate month labels ===
 const monthLabels = (() => {
-  const start = new Date(2025, 6); // July = month 6 (0-based)
+  const start = new Date(2025, 6); // July = 6 (0-based)
   return monthDataLinks.map((_, i) => {
     const d = new Date(start);
     d.setMonth(start.getMonth() + i);
@@ -15,62 +14,66 @@ const monthLabels = (() => {
   });
 })();
 
-// === Create and inject the month selector ===
-const selectorContainer = document.createElement("div");
-selectorContainer.id = "monthSelectorContainer";
-selectorContainer.style.margin = "1rem";
-selectorContainer.innerHTML = `
-  <label for="monthSelector" style="font-weight:bold; margin-right: 0.5rem;">Select Month:</label>
-  <select id="monthSelector">
-    ${monthLabels.map((label, i) => `<option value="${i}">${label}</option>`).join("")}
-  </select>
-`;
+// === Step 3: Prevent script.js from running its default init ===
+// This temporarily blocks the default init() from running
+window.init = () => {}; // dummy until we override it below
+
+// === Step 4: Inject the dropdown AFTER DOM is ready ===
 document.addEventListener("DOMContentLoaded", () => {
+  const selectorContainer = document.createElement("div");
+  selectorContainer.id = "monthSelectorContainer";
+  selectorContainer.style.margin = "1rem";
+  selectorContainer.innerHTML = `
+    <label for="monthSelector" style="font-weight:bold; margin-right: 0.5rem;">Select Month:</label>
+    <select id="monthSelector">
+      ${monthLabels.map((label, i) => `<option value="${i}">${label}</option>`).join("")}
+    </select>
+  `;
   document.body.insertBefore(selectorContainer, document.getElementById("charts"));
-});
 
-// === Override init to load selected month's URL ===
-const originalInit = window.init || (() => {});
-window.init = async function (index = 0) {
-  const url = monthDataLinks[index] || monthDataLinks[0];
-
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-
-    document.getElementById("loading").style.display = "none";
-    document.getElementById("transactionsTable").style.display = "table";
-
-    window.globalSummary = data.summary;
-    window.globalTransactions = data.transactions;
-
-    const categories = Object.keys(globalSummary);
-    if (typeof populateCategoryFilters === "function") {
-      populateCategoryFilters(categories);
-    }
-
-    if (typeof renderPieChart === "function") {
-      renderPieChart(toggleIncome.checked);
-    }
-
-    if (typeof populateTransactionsTable === "function") {
-      populateTransactionsTable(globalTransactions);
-    }
-  } catch (err) {
-    alert("Failed to load data for selected month.");
-  }
-};
-
-// === Hook up dropdown to trigger init ===
-document.addEventListener("DOMContentLoaded", () => {
   const monthSelector = document.getElementById("monthSelector");
   monthSelector.addEventListener("change", (e) => {
     const index = parseInt(e.target.value);
-    document.getElementById("loading").style.display = "block";
-    document.getElementById("transactionsTable").style.display = "none";
-    window.init(index);
+    loadDashboard(index);
   });
 
-  // Load default (July 2025)
-  init(0);
+  // Load default (July)
+  loadDashboard(0);
 });
+
+// === Step 5: Custom loader to replace original init() ===
+function loadDashboard(index = 0) {
+  const url = monthDataLinks[index];
+
+  document.getElementById("loading").style.display = "block";
+  document.getElementById("transactionsTable").style.display = "none";
+
+  fetch(url)
+    .then((res) => res.json())
+    .then((data) => {
+      if (!data) throw new Error("No data");
+
+      window.globalSummary = data.summary;
+      window.globalTransactions = data.transactions;
+
+      document.getElementById("loading").style.display = "none";
+      document.getElementById("transactionsTable").style.display = "table";
+
+      const categories = Object.keys(globalSummary);
+      if (typeof populateCategoryFilters === "function") {
+        populateCategoryFilters(categories);
+      }
+
+      if (typeof renderPieChart === "function") {
+        renderPieChart(toggleIncome.checked);
+      }
+
+      if (typeof populateTransactionsTable === "function") {
+        populateTransactionsTable(globalTransactions);
+      }
+    })
+    .catch((err) => {
+      console.error("Data load error:", err);
+      alert("Failed to load data for selected month.");
+    });
+}
