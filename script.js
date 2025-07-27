@@ -248,4 +248,4 @@ categoryFilterTable.addEventListener("change", () => {
 toggleDarkModeBtn.addEventListener("click", toggleDarkMode);
 exportPdfBtn.addEventListener("click", exportTableToPDF);
 
-init();
+monthSelector.dispatchEvent(new Event("change"));
