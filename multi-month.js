@@ -1,48 +1,46 @@
-// === Step 1: Define the ordered list of Google Script links ===
+// === Month Data Links in order ===
 const monthDataLinks = [
   "https://script.google.com/macros/s/AKfycbyINWFJ32BoDYI6yrO7X1xY-rgYpPe5z71f5ad-cGOTPwPSUNd8EoIww6ubTMMkAF9X/exec", // July 2025
   "https://script.google.com/macros/s/AKfycbxTh13rYdaQwoy8n6DuDPwv6SmLgpE3weilAvnmUhbR5Ct1-7qYAWz_jfAQsO57ut0/exec", // August 2025
 ];
 
-// === Step 2: Dynamically generate month labels ===
+// === Month Labels based on order ===
 const monthLabels = (() => {
-  const start = new Date(2025, 6); // July = 6 (0-based)
+  const start = new Date(2025, 6); // July (0-indexed)
   return monthDataLinks.map((_, i) => {
     const d = new Date(start);
-    d.setMonth(start.getMonth() + i);
+    d.setMonth(d.getMonth() + i);
     return d.toLocaleString("default", { month: "long", year: "numeric" });
   });
 })();
 
-// === Step 3: Prevent script.js from running its default init ===
-// This temporarily blocks the default init() from running
-window.init = () => {}; // dummy until we override it below
+// === Hijack the default init BEFORE script.js runs ===
+window.init = () => {}; // block the original init()
 
-// === Step 4: Inject the dropdown AFTER DOM is ready ===
+// === DOM Ready Setup ===
 document.addEventListener("DOMContentLoaded", () => {
-  const selectorContainer = document.createElement("div");
-  selectorContainer.id = "monthSelectorContainer";
-  selectorContainer.style.margin = "1rem";
-  selectorContainer.innerHTML = `
+  // Inject selector
+  const selector = document.createElement("div");
+  selector.id = "monthSelectorContainer";
+  selector.style.margin = "1rem";
+  selector.innerHTML = `
     <label for="monthSelector" style="font-weight:bold; margin-right: 0.5rem;">Select Month:</label>
     <select id="monthSelector">
       ${monthLabels.map((label, i) => `<option value="${i}">${label}</option>`).join("")}
     </select>
   `;
-  document.body.insertBefore(selectorContainer, document.getElementById("charts"));
+  document.body.insertBefore(selector, document.getElementById("charts"));
 
-  const monthSelector = document.getElementById("monthSelector");
-  monthSelector.addEventListener("change", (e) => {
-    const index = parseInt(e.target.value);
-    loadDashboard(index);
+  document.getElementById("monthSelector").addEventListener("change", (e) => {
+    loadDashboard(parseInt(e.target.value));
   });
 
-  // Load default (July)
+  // Load first month by default (July)
   loadDashboard(0);
 });
 
-// === Step 5: Custom loader to replace original init() ===
-function loadDashboard(index = 0) {
+// === Custom Dashboard Loader ===
+function loadDashboard(index) {
   const url = monthDataLinks[index];
 
   document.getElementById("loading").style.display = "block";
@@ -51,29 +49,24 @@ function loadDashboard(index = 0) {
   fetch(url)
     .then((res) => res.json())
     .then((data) => {
-      if (!data) throw new Error("No data");
-
       window.globalSummary = data.summary;
       window.globalTransactions = data.transactions;
 
       document.getElementById("loading").style.display = "none";
       document.getElementById("transactionsTable").style.display = "table";
 
-      const categories = Object.keys(globalSummary);
       if (typeof populateCategoryFilters === "function") {
-        populateCategoryFilters(categories);
+        populateCategoryFilters(Object.keys(globalSummary));
       }
-
       if (typeof renderPieChart === "function") {
         renderPieChart(toggleIncome.checked);
       }
-
       if (typeof populateTransactionsTable === "function") {
         populateTransactionsTable(globalTransactions);
       }
     })
     .catch((err) => {
-      console.error("Data load error:", err);
       alert("Failed to load data for selected month.");
+      console.error(err);
     });
 }
