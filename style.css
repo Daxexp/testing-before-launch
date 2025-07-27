@@ -294,7 +294,7 @@ button.icon-btn[title]:hover::after {
     color: var(--text-color);
   }
   td:nth-of-type(1)::before { content: "Date"; }
-  td:nth-of-type(2)::before { content: "Name"; }
+  td:nth-of-type(2)::before { content: "Description"; }
   td:nth-of-type(3)::before { content: "Category"; }
   td:nth-of-type(4)::before { content: "Amount"; }
   td:nth-of-type(5)::before { content: "Note"; }
