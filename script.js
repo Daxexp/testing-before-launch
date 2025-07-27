@@ -1,4 +1,19 @@
-const DATA_URL = "https://script.google.com/macros/s/AKfycbyINWFJ32BoDYI6yrO7X1xY-rgYpPe5z71f5ad-cGOTPwPSUNd8EoIww6ubTMMkAF9X/exec";
+let DATA_URL = "https://script.google.com/macros/s/AKfycbyINWFJ32BoDYI6yrO7X1xY-rgYpPe5z71f5ad-cGOTPwPSUNd8EoIww6ubTMMkAF9X/exec";
+
+const linksByMonth = {
+  "2025-07": "https://script.google.com/macros/s/AKfycbyINWFJ32BoDYI6yrO7X1xY-rgYpPe5z71f5ad-cGOTPwPSUNd8EoIww6ubTMMkAF9X/exec",
+  "2025-08": "https://script.google.com/macros/s/AKfycbxTh13rYdaQwoy8n6DuDPwv6SmLgpE3weilAvnmUhbR5Ct1-7qYAWz_jfAQsO57ut0/exec"
+};
+
+const monthSelector = document.getElementById("monthSelector");
+for (const month in linksByMonth) {
+  const option = document.createElement("option");
+  option.value = month;
+  option.textContent = new Date(month + "-01").toLocaleString('default', { month: 'long', year: 'numeric' });
+  monthSelector.appendChild(option);
+}
+monthSelector.value = "2025-07";
+DATA_URL = linksByMonth[monthSelector.value];
 
 let chartInstance;
 let globalSummary = {};
@@ -213,6 +228,13 @@ async function init() {
   renderPieChart(toggleIncome.checked);
   populateTransactionsTable(globalTransactions);
 }
+
+monthSelector.addEventListener("change", async () => {
+  DATA_URL = linksByMonth[monthSelector.value];
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('transactionsTable').style.display = 'none';
+  await init();
+});
 
 toggleIncome.addEventListener("change", () => {
   renderPieChart(toggleIncome.checked);
