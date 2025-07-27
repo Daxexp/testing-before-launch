@@ -1,64 +1,76 @@
-// Define monthly URLs
-const MULTI_MONTH_URLS = {
-  july: "https://script.google.com/macros/s/AKfycbyINWFJ32BoDYI6yrO7X1xY-rgYpPe5z71f5ad-cGOTPwPSUNd8EoIww6ubTMMkAF9X/exec",
-  august: "https://script.google.com/macros/s/YOUR_AUGUST_URL/exec",
-  september: "https://script.google.com/macros/s/YOUR_SEPTEMBER_URL/exec"
-};
+// === Define your URLs in order: July 2025, August 2025, etc. ===
+const monthDataLinks = [
+  "https://script.google.com/macros/s/AKfycbyINWFJ32BoDYI6yrO7X1xY-rgYpPe5z71f5ad-cGOTPwPSUNd8EoIww6ubTMMkAF9X/exec",
+  "https://script.google.com/macros/s/AKfycbxTh13rYdaQwoy8n6DuDPwv6SmLgpE3weilAvnmUhbR5Ct1-7qYAWz_jfAQsO57ut0/exec",
+  "https://script.google.com/macros/s/YOUR_SEPTEMBER_2025_URL/exec"
+];
 
-// Add month selector to the DOM
+// === Generate month labels starting from July 2025 ===
+const monthLabels = (() => {
+  const start = new Date(2025, 6); // July = month 6 (0-based)
+  return monthDataLinks.map((_, i) => {
+    const d = new Date(start);
+    d.setMonth(start.getMonth() + i);
+    return d.toLocaleString("default", { month: "long", year: "numeric" });
+  });
+})();
+
+// === Create and inject the month selector ===
 const selectorContainer = document.createElement("div");
 selectorContainer.id = "monthSelectorContainer";
+selectorContainer.style.margin = "1rem";
 selectorContainer.innerHTML = `
-  <label for="monthSelector">Select Month:</label>
+  <label for="monthSelector" style="font-weight:bold; margin-right: 0.5rem;">Select Month:</label>
   <select id="monthSelector">
-    <option value="july">July 2025</option>
-    <option value="august">August 2025</option>
-    <option value="september">September 2025</option>
+    ${monthLabels.map((label, i) => `<option value="${i}">${label}</option>`).join("")}
   </select>
 `;
-document.body.insertBefore(selectorContainer, document.getElementById("charts"));
+document.addEventListener("DOMContentLoaded", () => {
+  document.body.insertBefore(selectorContainer, document.getElementById("charts"));
+});
 
-// Override or hook into the original init() function
-let originalInit = window.init || (() => {});
-window.init = async function (monthKey = "july") {
-  const url = MULTI_MONTH_URLS[monthKey] || MULTI_MONTH_URLS["july"];
-  const res = await fetch(url);
-  const data = await res.json();
+// === Override init to load selected month's URL ===
+const originalInit = window.init || (() => {});
+window.init = async function (index = 0) {
+  const url = monthDataLinks[index] || monthDataLinks[0];
 
-  if (!data) return;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
 
-  // Fake expected global structure from original script.js
-  window.globalSummary = data.summary;
-  window.globalTransactions = data.transactions;
+    document.getElementById("loading").style.display = "none";
+    document.getElementById("transactionsTable").style.display = "table";
 
-  // Hide loading, show table
-  document.getElementById("loading").style.display = "none";
-  document.getElementById("transactionsTable").style.display = "table";
+    window.globalSummary = data.summary;
+    window.globalTransactions = data.transactions;
 
-  // Call original update/render functions
-  const categories = Object.keys(globalSummary);
-  if (typeof populateCategoryFilters === "function") {
-    populateCategoryFilters(categories);
-  }
+    const categories = Object.keys(globalSummary);
+    if (typeof populateCategoryFilters === "function") {
+      populateCategoryFilters(categories);
+    }
 
-  if (typeof renderPieChart === "function") {
-    renderPieChart(toggleIncome.checked);
-  }
+    if (typeof renderPieChart === "function") {
+      renderPieChart(toggleIncome.checked);
+    }
 
-  if (typeof populateTransactionsTable === "function") {
-    populateTransactionsTable(globalTransactions);
+    if (typeof populateTransactionsTable === "function") {
+      populateTransactionsTable(globalTransactions);
+    }
+  } catch (err) {
+    alert("Failed to load data for selected month.");
   }
 };
 
-// Re-call init() when month is changed
-document.getElementById("monthSelector").addEventListener("change", (e) => {
-  const selectedMonth = e.target.value;
-  document.getElementById("loading").style.display = "block";
-  document.getElementById("transactionsTable").style.display = "none";
-  window.init(selectedMonth);
-});
+// === Hook up dropdown to trigger init ===
+document.addEventListener("DOMContentLoaded", () => {
+  const monthSelector = document.getElementById("monthSelector");
+  monthSelector.addEventListener("change", (e) => {
+    const index = parseInt(e.target.value);
+    document.getElementById("loading").style.display = "block";
+    document.getElementById("transactionsTable").style.display = "none";
+    window.init(index);
+  });
 
-// Call the new init on load
-window.addEventListener("DOMContentLoaded", () => {
-  init("july");
+  // Load default (July 2025)
+  init(0);
 });
